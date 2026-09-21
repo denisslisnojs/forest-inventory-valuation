@@ -1,3 +1,5 @@
+![Forest inventory valuation: inventory PDF to clear-cut value](assets/banner.svg)
+
 # Forest inventory valuation
 
 A browser tool that turns a forest inventory PDF (Latvian State Forest Register, «Nogabalu raksturojošie rādītāji») into a clear-cut valuation.
