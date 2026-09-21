@@ -1,0 +1,996 @@
+<!doctype html>
+<html lang="lv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cirsmas vērtības aprēķins</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232f6b3f'/%3E%3Cpath d='M32 10 16 34h9l-7 11h28l-7-11h9z' fill='%23fff'/%3E%3Crect x='29' y='45' width='6' height='9' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#f2f4ef;
+  --card:#ffffff;
+  --line:#e1e6dc;
+  --ink:#16241a;
+  --text:#2b3a2f;
+  --muted:#6a776c;
+  --accent:#2f6b3f;
+  --accent-soft:#e3efe5;
+  --green:#2f855a;
+  --green-soft:#e2f3e9;
+  --warn:#9a6700;
+  --warn-soft:#fff4d6;
+  --red:#b83a32;
+  --red-soft:#fbe8e6;
+  --input:#fbfcfa;
+  --shadow:0 1px 2px rgba(22,36,26,.04), 0 8px 24px rgba(22,36,26,.06);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size:14px;line-height:1.45}
+header{background:var(--accent);color:#fff;padding:18px 28px}
+header h1{margin:0;font-size:20px;font-weight:650;letter-spacing:.2px}
+header h1 .ver{font-size:12px;font-weight:600;background:rgba(255,255,255,.18);padding:2px 8px;border-radius:999px;margin-left:8px;vertical-align:middle}
+header p{margin:2px 0 0;opacity:.85;font-size:13px}
+main{max-width:1280px;margin:0 auto;padding:20px 24px 60px;display:grid;gap:16px}
+main > *{min-width:0} /* let wide tables scroll inside their card instead of widening the page */
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:18px 20px}
+.card h2{margin:0 0 12px;font-size:16px;color:var(--ink);display:flex;align-items:center;gap:8px}
+.card h2 .step{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+
+/* upload */
+.drop{display:block;border:2px dashed #b9c7b6;border-radius:12px;padding:26px;text-align:center;background:var(--input);cursor:pointer;transition:.15s}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop strong{color:var(--ink);font-size:15px}
+.file-name{font-weight:600;color:var(--ink)}
+
+/* buttons */
+button{font:inherit;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.link{border:none;background:none;color:var(--red);padding:2px 6px}
+
+/* checks */
+.checks{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.checks li{padding:7px 10px;border-radius:8px;display:flex;gap:8px}
+.checks .ok{background:var(--green-soft);color:#1e5a3b}
+.checks .warn{background:var(--warn-soft);color:var(--warn)}
+.checks .err{background:var(--red-soft);color:var(--red)}
+
+/* report */
+.report-warn{background:var(--red-soft);color:var(--red);padding:8px 12px;border-radius:8px;margin:0 0 10px;font-weight:600}
+.report{font-size:16px;line-height:1.7;color:var(--ink);background:var(--accent-soft);border-left:5px solid var(--accent);padding:14px 18px;border-radius:8px;white-space:pre-line}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:12px}
+.kpi{background:var(--input);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.kpi b{display:block;font-size:20px;color:var(--ink)}
+.kpi span{font-size:12px;color:var(--muted)}
+
+/* tables */
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{font-size:12px;color:var(--muted);font-weight:600;background:#f7f9f5;position:sticky;top:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.excluded td{color:#9aa39b}
+tr.nonforest td{color:#a7ada8;font-style:italic}
+tr.manual-row td{background:#fffbef}
+tfoot td{font-weight:650;color:var(--ink);background:#f7f9f5}
+.badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600}
+.badge.yes{background:var(--green-soft);color:#1e5a3b}
+.badge.no{background:#eef0ec;color:#6a776c}
+.badge.manual{background:var(--warn-soft);color:var(--warn)}
+.badge.unk{background:var(--red-soft);color:var(--red)}
+.pass{color:#1e5a3b}.fail{color:#9aa39b}
+.note{cursor:help;color:var(--warn)}
+.notes-cell{white-space:normal;min-width:110px;max-width:170px;font-size:12px;line-height:1.3}
+.cell-edit{padding:3px 5px;border:1px solid transparent;border-radius:6px;background:transparent;font:inherit;color:inherit;text-align:right}
+.cell-edit.text{text-align:left}
+.cell-edit:hover{border-color:var(--line);background:var(--input)}
+.cell-edit:focus{outline:2px solid var(--accent-soft);border-color:var(--accent);background:#fff}
+.cell-edit.edited{background:var(--warn-soft);border-color:#f0d58a}
+.cell-edit.invalid{background:var(--red-soft);border-color:#e8b4ae}
+.limit{color:var(--muted);font-size:12px}
+
+/* matrix */
+.matrix input{width:58px;padding:3px 5px;border:1px solid var(--line);border-radius:6px;background:var(--input);font:inherit;text-align:right}
+.matrix input:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+.matrix th.col{text-align:center;color:var(--ink);font-size:13px;border-left:2px solid var(--line)}
+.matrix td.first-sub{border-left:2px solid var(--line)}
+.matrix td.vol{color:var(--muted);font-size:12px}
+.matrix tr.head-vol td{background:var(--warn-soft);font-weight:650;color:var(--ink)}
+.matrix td.bad{color:var(--red);font-weight:700}
+.costs{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:14px}
+.costs label{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--input);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.costs input{width:64px;padding:3px 5px;border:1px solid var(--line);border-radius:6px;text-align:right;font:inherit}
+.costs .amount{color:var(--muted);font-size:12px}
+
+/* settings */
+details{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--input)}
+details+details{margin-top:10px}
+summary{cursor:pointer;font-weight:600;color:var(--ink)}
+.rules input{width:52px;padding:3px 5px;border:1px solid var(--line);border-radius:6px;text-align:right;font:inherit}
+.rules select{font:inherit;padding:2px 4px;border:1px solid var(--line);border-radius:6px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;margin-top:10px}
+
+[hidden]{display:none!important}
+.print-val{display:none}
+@page{size:A4 landscape;margin:10mm}
+@media print{
+  header{background:none;color:var(--ink);padding:0 0 6px}
+  header p{color:var(--muted)}
+  body{background:#fff;font-size:11px}
+  main{max-width:none;padding:0;gap:6px}
+  .card{box-shadow:none;border:none;padding:4px 0}
+  .card h2{break-after:avoid;margin-bottom:6px}
+  .report,.kpis,tr{break-inside:avoid}
+  .kpis{grid-template-columns:repeat(6,1fr)}
+  /* page 1: report, page 2: stands and species, page 3: matrix — no table split after one row */
+  #standsCard,#matrixCard{break-before:page}
+  /* Chrome repeats tfoot on every page; the totals row belongs only at the end */
+  tfoot{display:table-row-group}
+  #uploadCard,#settingsCard,.no-print,button{display:none!important}
+  .scroll{overflow:visible!important}
+  table{width:100%}
+  th,td{padding:3px 5px}
+  th{position:static}
+  input.cell-edit,.matrix input,.costs input{display:none!important}
+  .print-val{display:inline!important}
+  .print-val.edited{background:var(--warn-soft);padding:0 3px;border-radius:3px}
+  .col-empty{display:none!important}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Cirsmas vērtības aprēķins</h1>
+  <p>Meža inventarizācijas PDF → kailcirtei derīgie nogabali → cērtamais apjoms → sortimenti → maksimālā iegādes summa</p>
+</header>
+
+<main>
+  <section class="card" id="uploadCard">
+    <h2><span class="step">1</span>Inventarizācijas dati</h2>
+    <label class="drop" id="drop">
+      <input type="file" id="fileInput" accept="application/pdf,.pdf" hidden>
+      <strong>Izvēlieties vai ievelciet PDF failu</strong><br>
+      <span class="muted">«Nogabalu raksturojošie rādītāji». Fails tiek apstrādāts šajā pārlūkā un netiek nekur augšupielādēts.</span>
+    </label>
+    <p class="small muted" id="fileInfo" hidden></p>
+  </section>
+
+  <section class="card" id="checksCard" hidden>
+    <h2><span class="step">2</span>Datu nolasīšanas pārbaude</h2>
+    <ul class="checks" id="checks"></ul>
+  </section>
+
+  <section class="card" id="reportCard" hidden>
+    <h2><span class="step">3</span>Gala atskaite</h2>
+    <p class="report-warn" id="reportWarn" hidden>Aprēķins nav pilnīgs vai var būt nepareizs — vispirms novērsiet sarkanās kļūdas sadaļā «Datu nolasīšanas pārbaude» (piemēram, ievadiet trūkstošās vērtības).</p>
+    <div class="report" id="report"></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="row no-print" style="margin-top:12px">
+      <button class="primary" id="copyBtn">Kopēt atskaiti</button>
+      <button id="printBtn">Drukāt / saglabāt PDF</button>
+      <span class="small muted" id="copyMsg"></span>
+    </div>
+  </section>
+
+  <section class="card" id="standsCard" hidden>
+    <h2><span class="step">4</span>Nogabali un kailcirtes nosacījumi</h2>
+    <p class="small muted no-print">Lēmums tiek pieņemts automātiski pēc nosacījumiem. Ar ķeksīti nogabalu var iekļaut vai izslēgt manuāli.
+      Ja kāda vērtība nolasīta nepareizi, noklikšķiniet uz tās un izlabojiet — labotās vērtības iekrāsotas dzeltenā krāsā.</p>
+    <div class="scroll"><table id="standsTable"></table></div>
+    <div class="row no-print" style="margin-top:10px">
+      <button id="addStandBtn">+ Pievienot nogabalu</button>
+      <button id="clearEditsBtn">Atcelt visus labojumus</button>
+      <span class="small muted">Ja kāds nogabals nav nolasīts, pievienojiet to un ievadiet datus no PDF.</span>
+    </div>
+  </section>
+
+  <section class="card" id="speciesCard" hidden>
+    <h2><span class="step">5</span>Apjoms pa koku sugām</h2>
+    <div class="scroll"><table id="speciesTable"></table></div>
+  </section>
+
+  <section class="card" id="matrixCard" hidden>
+    <h2><span class="step">6</span>Sortimentu iznākuma matrica un izdevumi</h2>
+    <p class="small muted no-print">Cenas (EUR/m³) un sortimentu % var mainīt — aprēķins atjaunojas uzreiz. Izmaiņas saglabājas šajā pārlūkā.</p>
+    <div class="scroll"><table class="matrix" id="matrixTable"></table></div>
+    <div class="costs" id="costs"></div>
+  </section>
+
+  <section class="card" id="settingsCard">
+    <h2>Aprēķina nosacījumi</h2>
+    <details>
+      <summary>Kailcirtes vecums un caurmērs</summary>
+      <div class="grid2 rules">
+        <div class="scroll"><table id="ageTable"></table></div>
+        <div>
+          <div class="scroll"><table id="diaTable"></table></div>
+          <p class="small">Bez vecuma un caurmēra ierobežojuma: <input id="exemptInput" style="width:120px;text-align:left"> <span class="muted">(sugu kodi, atdalīti ar komatu)</span></p>
+          <p class="small muted">Valdošā suga — suga ar lielāko koeficientu summu formulā. Nogabals der kailcirtei, ja sasniegts cirtes vecums VAI caurmērs.</p>
+        </div>
+      </div>
+    </details>
+    <details>
+      <summary>Sugu piesaiste matricas kolonnām</summary>
+      <div class="rules" style="margin-top:10px"><div class="scroll"><table id="mapTable"></table></div>
+      <p class="small muted">Sugas, kurām nav norādīta kolonna, tiek ieskaitītas «Citi».</p></div>
+    </details>
+    <div class="row" style="margin-top:12px">
+      <button id="resetBtn">Atjaunot noklusējuma vērtības</button>
+      <span class="small muted">Noklusējuma vērtības ņemtas no uzdevuma piemēra.</span>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.min.mjs";
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs";
+
+/* ---------------------------------------------------------------- defaults (from the task example) */
+const DEFAULTS = {
+  cutAge: {            // bonitāte groups: [Ia–I, II–III, IV and lower]
+    Oz: [101, 121, 121],
+    P: [101, 101, 121], L: [101, 101, 121],
+    E: [81, 81, 81], Os: [81, 81, 81], Li: [81, 81, 81], Go: [81, 81, 81], Vi: [81, 81, 81], Kl: [81, 81, 81],
+    B: [71, 71, 51],
+    Bl: [71, 71, 71],
+    A: [41, 41, 41],
+  },
+  cutDiameter: {
+    P: { Ia: 39, I: 35, II: 31, III: 27 },
+    E: { Ia: 31, I: 29, II: 29, III: 27 },
+    B: { Ia: 31, I: 27, II: 25, III: 22 },
+  },
+  exempt: ["Ba"],
+  columns: ["P", "E", "B", "Ma", "A", "Ba", "Oz/Os", "Citi"],
+  speciesColumn: { P: "P", E: "E", B: "B", A: "A", Ba: "Ba", Oz: "Oz/Os", Os: "Oz/Os" },
+  assortments: ["A klase", "Finieris A", "Finieris B", "Finieris C", "ZB", "SB", "Tara", "PM", "Kamīnmalka", "Malka", "Gulsnis"],
+  matrix: {            // column -> assortment -> [EUR/m3, %]
+    "P": { "A klase": [120, 3], "ZB": [100, 70], "SB": [80, 7], "Tara": [60, 10], "PM": [50, 7], "Malka": [38, 3], "Gulsnis": [70, null] },
+    "E": { "ZB": [100, 50], "SB": [80, 15], "Tara": [60, 10], "PM": [50, 20], "Malka": [38, 5], "Gulsnis": [70, null] },
+    "B": { "Finieris A": [150, 5], "Finieris B": [110, 15], "Finieris C": [90, 10], "Tara": [50, 30], "PM": [40, 30], "Malka": [38, 10] },
+    "Ma": { "ZB": [80, 30], "Tara": [50, 40], "Malka": [38, 30] },
+    "A": { "ZB": [80, 20], "Tara": [50, 50], "PM": [45, 20], "Malka": [38, 10] },
+    "Ba": { "Tara": [50, 20], "Malka": [38, 80] },
+    "Oz/Os": { "ZB": [200, 10], "Tara": [60, 60], "Kamīnmalka": [50, null] },
+    "Citi": { "Malka": [38, 100] },
+  },
+  costs: { cutting: 11, forwarding: 7, transport: 6, profit: 10 },
+};
+
+const SPECIES_NAMES = { P: "priede", L: "lapegle", E: "egle", B: "bērzs", A: "apse", Ba: "baltalksnis", Bl: "melnalksnis",
+  Oz: "ozols", Os: "osis", Li: "liepa", Go: "goba", Vi: "vīksna", Kl: "kļava" };
+const SPECIES_ORDER = ["P", "L", "E", "B", "A", "Ba", "Bl", "Oz", "Os", "Li", "Go", "Vi", "Kl"];
+const BONITET_GROUP = { Ia: 0, I: 0, II: 1, III: 1, IV: 2, V: 2, Va: 2, Vb: 2 };
+const STORE_KEY = "cirsma-settings-v1";
+
+/* Table columns recognised by their header words. Number columns are matched to data by horizontal position. */
+const COLUMN_DEFS = [
+  { id: "nr", label: "nogabals", keys: ["nogabals", "kvartāls/"] },
+  { id: "area", label: "Ģeo platība", keys: ["platība"], required: true },
+  { id: "landType", label: "meža zemes veids", keys: ["veids"] },
+  { id: "forestType", label: "meža tips", keys: ["tips"] },
+  { id: "formula", label: "nogabala apraksts", keys: ["apraksts"], required: true },
+  { id: "origin", label: "izcelšanās", keys: ["izcelšanās"] },
+  { id: "bonitet", label: "bonitāte", keys: ["bonitāte"], required: true },
+  { id: "height", label: "vid. augstums", keys: ["augstums"], numeric: true },
+  { id: "diameter", label: "vid. caurmērs", keys: ["caurmērs"], numeric: true },
+  { id: "age", label: "vecums", keys: ["vecums"], numeric: true, required: true },
+  { id: "density", label: "biezība", keys: ["biezība"], numeric: true },
+  { id: "basal", label: "šķērslaukums", keys: ["šķērslauk"], numeric: true },
+  { id: "trees", label: "koku skaits", keys: ["gab/ha"], numeric: true },
+  { id: "stock", label: "krāja", keys: ["krāja"], numeric: true, required: true },
+];
+const NUMERIC_COLUMNS = COLUMN_DEFS.filter(c => c.numeric).map(c => c.id);
+const EDITABLE = ["area", "formula", "bonitet", "age", "diameter", "stock"];
+
+/* ---------------------------------------------------------------- state */
+let settings = loadSettings();
+let inventory = null;          // parsed document
+const overrides = new Map();   // stand key -> include true/false set by the user
+const edits = new Map();       // stand key -> { field: value } corrected by the user
+let manualStands = [];         // stands added by hand
+let manualCounter = 0;
+
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return { ...clone(DEFAULTS), ...JSON.parse(raw) };
+  } catch (e) { /* storage unavailable */ }
+  return clone(DEFAULTS);
+}
+function saveSettings() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ }
+}
+
+/* ---------------------------------------------------------------- formatting */
+const nf0 = new Intl.NumberFormat("lv-LV", { maximumFractionDigits: 0, useGrouping: "always" });
+const nf2 = new Intl.NumberFormat("lv-LV", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" });
+const f0 = v => nf0.format(Math.round(v));
+const f2 = v => nf2.format(v);
+const esc = s => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const numLv = s => parseFloat(String(s).trim().replace(",", "."));
+const isNumber = s => /^\d+([.,]\d+)?$/.test(s);
+const isInt = s => /^\d+$/.test(s);
+
+/* ---------------------------------------------------------------- PDF reading */
+/* Every word gets its own horizontal centre, so columns can be matched by position. */
+async function readPdfRows(file) {
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const rows = [];
+  let textItems = 0;
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const words = [];
+    for (const it of content.items) {
+      if (!it.str || !it.str.trim()) continue;
+      textItems++;
+      const s = it.str, x = it.transform[4], y = it.transform[5], w = it.width || 0;
+      for (const m of s.matchAll(/\S+/g)) {
+        const x0 = x + w * (m.index / s.length);
+        const width = w * (m[0].length / s.length);
+        words.push({ text: m[0], x0, width, x: x0 + width / 2, y });
+      }
+    }
+    words.sort((a, b) => b.y - a.y || a.x - b.x);
+    const pageRows = [];
+    for (const wd of words) {
+      const row = pageRows.find(r => Math.abs(r.y - wd.y) <= 2.5);
+      if (row) row.cells.push(wd); else pageRows.push({ y: wd.y, cells: [wd] });
+    }
+    pageRows.sort((a, b) => b.y - a.y);
+    for (const r of pageRows) {
+      r.cells.sort((a, b) => a.x - b.x);
+      rows.push({ page: p, cells: r.cells, tokens: r.cells.map(c => c.text) });
+    }
+  }
+  return { rows, pages: pdf.numPages, textItems };
+}
+
+/* ---------------------------------------------------------------- inventory parsing */
+const GROUP_RE = /^((?:\d{1,2}[A-Z][a-z]?)+)(\d{1,3})$/;
+const PAIR_RE = /(\d{1,2})([A-Z][a-z]?)/g;
+
+function parseGroups(formula) {
+  const out = [];
+  for (const tok of String(formula || "").split(/\s+/)) {
+    const m = tok.match(GROUP_RE);
+    if (!m) continue;
+    for (const pm of m[1].matchAll(PAIR_RE)) out.push({ coef: +pm[1], sp: pm[2], age: +m[2] });
+  }
+  return out;
+}
+
+const isStandRow = t => t.length >= 3 && isInt(t[0]) && isNumber(t[1]);
+const isHeaderStart = t => t.some(x => /^(kvartāls\/|nogabals|ģeo|valdošā)$/i.test(x));
+
+/* Find column centres from the header words on this page (header cells may span several text lines). */
+function findHeaderAnchors(pageRows) {
+  const start = pageRows.findIndex(r => isHeaderStart(r.tokens));
+  if (start === -1) return null;
+  const anchors = {};
+  for (let i = start; i < Math.min(pageRows.length, start + 12); i++) {
+    const r = pageRows[i];
+    const text = r.tokens.join(" ");
+    if (i > start && (isStandRow(r.tokens) || /Zemes vienība|kvartāls$|^Kopā/.test(text))) break;
+    for (const cell of r.cells) {
+      const low = cell.text.toLowerCase();
+      for (const def of COLUMN_DEFS) {
+        if (anchors[def.id] !== undefined) continue;
+        for (const key of def.keys) {
+          const k = low.indexOf(key);
+          if (k === -1) continue;
+          // position of the keyword inside the word (header words are sometimes glued, e.g. "augstumscaurmērs")
+          anchors[def.id] = cell.x0 + cell.width * ((k + key.length / 2) / low.length);
+          break;
+        }
+      }
+    }
+  }
+  return Object.keys(anchors).length >= 4 ? anchors : null;
+}
+
+/* Assign number cells to number columns by closest header position, each column used once. */
+function assignNumbers(cells, anchors) {
+  const cols = NUMERIC_COLUMNS.filter(id => anchors[id] !== undefined);
+  const pairs = [];
+  cells.forEach((c, i) => cols.forEach(id => pairs.push({ i, id, d: Math.abs(c.x - anchors[id]) })));
+  pairs.sort((a, b) => a.d - b.d);
+  const usedCell = new Set(), usedCol = new Set(), out = {};
+  for (const p of pairs) {
+    if (usedCell.has(p.i) || usedCol.has(p.id)) continue;
+    usedCell.add(p.i); usedCol.add(p.id);
+    out[p.id] = numLv(cells[p.i].text);
+  }
+  return out;
+}
+
+function parseInventory({ rows, pages, textItems }) {
+  const meta = { zemesVieniba: "", ipasumsNr: "", objekts: "", pagasts: "", totalArea: null };
+  const stands = [];
+  const errors = [];
+  let kvartals = "";
+  let current = null;
+  let allowContinuation = false;
+  let landStand = null;
+  let anchors = null;
+  let layout = "none";          // "header" | "order"
+  const anchorsSeen = new Set();
+
+  for (let p = 1; p <= pages; p++) {
+    const pageRows = rows.filter(r => r.page === p);
+    const pageAnchors = findHeaderAnchors(pageRows);
+    if (pageAnchors) { anchors = pageAnchors; Object.keys(pageAnchors).forEach(k => anchorsSeen.add(k)); }
+
+    for (const row of pageRows) {
+      const t = row.tokens;
+      const text = t.join(" ");
+      let m;
+      if (!meta.zemesVieniba && (m = text.match(/Zemes vienības?\s*(?:apzīmējums-?)?\s*(\d{11})/))) meta.zemesVieniba = m[1];
+      if (!meta.objekts && (m = text.match(/Īpašums\s*-\s*(\d+)\s*-\s*(\S.*)$/))) { meta.ipasumsNr = m[1]; meta.objekts = m[2].trim(); }
+      if (!meta.pagasts && (m = text.match(/(\S+\s+pagasts)/))) meta.pagasts = m[1];
+      if ((m = text.match(/^(\d+)\.\s*kvartāls/))) { kvartals = m[1]; allowContinuation = false; landStand = null; continue; }
+      if ((m = text.match(/Pavisam kopā \(ha\):\s*([\d,.]+)/))) { meta.totalArea = numLv(m[1]); continue; }
+
+      if (allowContinuation && current && t.length && t.every(x => GROUP_RE.test(x))) {
+        current.formula += " " + t.join(" ");
+        continue;
+      }
+      allowContinuation = false;
+
+      if (landStand && t.length && t.every(x => !/\d/.test(x)) && !/^(Platību|Pēdējais|Atjaunots|Aizs)/.test(text)) {
+        landStand.landType += " " + text;
+        continue;
+      }
+      landStand = null;
+
+      if (isStandRow(t)) {
+        const base = { key: `${kvartals}/${t[0]}`, kvartals, nr: +t[0], area: numLv(t[1]) };
+        const idx = t.indexOf("Mežaudze");
+        if (idx === -1) {
+          landStand = { ...base, forest: false, landType: t.slice(2).join(" ") };
+          stands.push(landStand);
+          current = null;
+          continue;
+        }
+        const cells = row.cells;
+        const formula = cells.filter(c => GROUP_RE.test(c.text)).map(c => c.text).join(" ");
+        const bonitetCell = cells.find((c, i) => i > idx && BONITET_GROUP[c.text] !== undefined);
+        const bonitet = bonitetCell ? bonitetCell.text : "";
+        const numberCells = cells.slice(2).filter(c => isNumber(c.text) && !GROUP_RE.test(c.text));
+        let values;
+        if (anchors) {
+          values = assignNumbers(numberCells, anchors);
+          layout = "header";
+        } else {
+          // fallback: old fixed order — height, diameter, age … stock last
+          const n = numberCells.map(c => numLv(c.text));
+          values = { height: n[0], diameter: n[1], age: n[2], stock: n[n.length - 1] };
+          layout = "order";
+        }
+        const stand = { ...base, forest: true, landType: "Mežaudze", formula, bonitet,
+          height: values.height ?? null, diameter: values.diameter ?? null, age: values.age ?? null, stock: values.stock ?? null,
+          notes: [], lastCut: "" };
+        if (!bonitet) errors.push(`${t[0]}. nogabals: nav atrasta bonitāte rindā «${text}»`);
+        stands.push(stand);
+        current = stand;
+        allowContinuation = true;
+        continue;
+      }
+
+      if (current && /^Aizs\.?paz/.test(text)) current.notes.push(text);
+      if (current && (m = text.match(/Pēdējais cirtes izpildes veids un gads:\s*(.+)$/))) current.lastCut = m[1];
+    }
+  }
+  const missingColumns = layout === "header" ? COLUMN_DEFS.filter(d => !anchorsSeen.has(d.id)) : [];
+  return { meta, stands, errors, pages, textItems, layout, missingColumns };
+}
+
+/* ---------------------------------------------------------------- user corrections */
+function allStands() {
+  return [...inventory.stands, ...manualStands].map(s => {
+    const e = edits.get(s.key) || {};
+    const out = { ...s, edited: new Set(Object.keys(e)) };
+    for (const [f, v] of Object.entries(e)) out[f] = v;
+    if (out.forest) {
+      out.groups = parseGroups(out.formula);
+      out.coefSum = out.groups.reduce((a, g) => a + g.coef, 0);
+    }
+    return out;
+  });
+}
+
+/* ---------------------------------------------------------------- calculation */
+function evaluateStand(s) {
+  const totals = {};
+  for (const g of s.groups) totals[g.sp] = (totals[g.sp] || 0) + g.coef;
+  const codes = Object.keys(totals);
+  if (!codes.length) return { dominant: "", ok: false, unknown: true, ageLimit: null, diaLimit: null };
+  const dominant = codes.reduce((a, b) => (totals[b] > totals[a] ? b : a));
+  if (settings.exempt.includes(dominant)) return { dominant, ok: true, exempt: true };
+  const ageLimit = settings.cutAge[dominant]?.[BONITET_GROUP[s.bonitet]] ?? null;
+  const diaLimit = settings.cutDiameter[dominant]?.[s.bonitet] ?? null;
+  if (ageLimit === null && diaLimit === null) return { dominant, ok: false, unknown: true, ageLimit, diaLimit };
+  const byAge = ageLimit !== null && Number.isFinite(s.age) && s.age >= ageLimit;
+  const byDia = diaLimit !== null && Number.isFinite(s.diameter) && s.diameter >= diaLimit;
+  return { dominant, ok: byAge || byDia, byAge, byDia, ageLimit, diaLimit };
+}
+
+function sortSpecies(list) {
+  return [...list].sort((a, b) => {
+    const ia = SPECIES_ORDER.indexOf(a), ib = SPECIES_ORDER.indexOf(b);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.localeCompare(b);
+  });
+}
+
+function calculate() {
+  const stands = allStands();
+  const forest = stands.filter(s => s.forest);
+  const species = {};
+  const perStand = [];
+  let area = 0;
+  for (const s of forest) {
+    s.eval = evaluateStand(s);
+    s.included = overrides.has(s.key) ? overrides.get(s.key) : s.eval.ok;
+    s.volume = (Number.isFinite(s.stock) && Number.isFinite(s.area)) ? s.stock * s.area : 0;
+    if (!s.included) continue;
+    area += s.area || 0;
+    const row = { stand: s, species: {} };
+    for (const g of s.groups) {
+      const v = s.volume * g.coef / 10;
+      species[g.sp] = (species[g.sp] || 0) + v;
+      row.species[g.sp] = (row.species[g.sp] || 0) + v;
+    }
+    perStand.push(row);
+  }
+  const total = Object.values(species).reduce((a, v) => a + v, 0);
+
+  const columnVolume = Object.fromEntries(settings.columns.map(c => [c, 0]));
+  for (const [sp, v] of Object.entries(species)) {
+    const col = settings.speciesColumn[sp] && settings.columns.includes(settings.speciesColumn[sp]) ? settings.speciesColumn[sp] : "Citi";
+    columnVolume[col] += v;
+  }
+
+  const rowRevenue = {};
+  const cells = {};
+  let revenue = 0;
+  for (const a of settings.assortments) {
+    rowRevenue[a] = 0;
+    for (const c of settings.columns) {
+      const [price, pct] = settings.matrix[c]?.[a] ?? [null, null];
+      const vol = pct ? columnVolume[c] * pct / 100 : 0;
+      const eur = price && pct ? vol * price : 0;
+      cells[`${c}|${a}`] = { vol, eur };
+      rowRevenue[a] += eur;
+    }
+    revenue += rowRevenue[a];
+  }
+  const shareSum = Object.fromEntries(settings.columns.map(c =>
+    [c, settings.assortments.reduce((s, a) => s + (settings.matrix[c]?.[a]?.[1] || 0), 0)]));
+
+  const k = settings.costs;
+  const costItems = [
+    ["Koku ciršana", k.cutting * total],
+    ["Kokmateriālu pievešana", k.forwarding * total],
+    ["Transports", k.transport * total],
+  ];
+  const costs = costItems.reduce((a, [, v]) => a + v, 0);
+  const profit = (revenue - costs) * k.profit / 100;
+  const maxSum = revenue - costs - profit;
+  return { stands, forest, species, perStand, total, area, columnVolume, cells, rowRevenue, shareSum, revenue, costItems, costs, profit, maxSum,
+    perM3: total > 0 ? maxSum / total : 0 };
+}
+
+/* ---------------------------------------------------------------- rendering */
+const $ = id => document.getElementById(id);
+
+function standLabel(s, multiQuarter) {
+  if (s.manual) return `${s.nr}.nog (manuāli)`;
+  return multiQuarter ? `${s.kvartals}. kv. ${s.nr}.nog` : `${s.nr}.nog`;
+}
+
+/* Re-rendering replaces inputs; put the cursor back where the user was typing. */
+function withFocusKept(fn) {
+  const el = document.activeElement;
+  const key = el && (el.dataset.cell || el.dataset.cost || el.dataset.edit);
+  const attr = el && (el.dataset.cell ? "cell" : el.dataset.cost ? "cost" : el.dataset.edit ? "edit" : null);
+  const pos = el && typeof el.selectionStart === "number" ? el.selectionStart : null;
+  const raw = key ? el.value : null;
+  fn();
+  if (!key) return;
+  const next = document.querySelector(`[data-${attr}="${CSS.escape(key)}"]`);
+  if (!next) return;
+  // keep the text exactly as typed: "0," must not be redrawn as "0" before the user types "5"
+  next.value = raw;
+  next.focus();
+  if (pos !== null) next.setSelectionRange(pos, pos);
+}
+
+function render() {
+  if (!inventory) return;
+  withFocusKept(() => {
+    const r = calculate();
+    const multiQuarter = new Set(inventory.stands.map(s => s.kvartals)).size > 1;
+    $("reportWarn").hidden = !renderChecks(r);
+    renderReport(r, multiQuarter);
+    renderStands(r, multiQuarter);
+    renderSpecies(r, multiQuarter);
+    renderMatrix(r);
+    renderCosts(r);
+  });
+  ["checksCard", "reportCard", "standsCard", "speciesCard", "matrixCard"].forEach(id => ($(id).hidden = false));
+}
+
+let checksMultiQuarter = false;
+const nogText = s => {
+  if (s.nr === "" || s.nr === null || s.nr === undefined) return "jaunais nogabals";
+  if (s.manual) return `${s.nr}. nog. (manuāli)`;
+  return checksMultiQuarter ? `${s.kvartals}. kv. ${s.nr}. nog.` : `${s.nr}. nog.`;
+};
+
+function renderChecks(r) {
+  const inv = inventory;
+  checksMultiQuarter = new Set(inv.stands.map(s => s.kvartals)).size > 1;
+  const items = [];
+  const forest = r.forest;
+  if (!inv.textItems) {
+    items.push(["err", "PDF failā nav teksta slāņa (iespējams, skenēts dokuments). Datus var ievadīt manuāli ar «+ Pievienot nogabalu»."]);
+  } else if (!inv.stands.length) {
+    items.push(["err", "Neizdevās atrast nogabalu tabulu. Pārbaudiet, vai tas ir «Nogabalu raksturojošie rādītāji» PDF, vai ievadiet nogabalus manuāli."]);
+  } else {
+    items.push(["ok", `Nolasīti ${inv.stands.length} nogabali (${inv.stands.filter(s => s.forest).length} mežaudzes) no ${inv.pages} lpp.`]);
+  }
+
+  if (inv.layout === "header") {
+    const missingRequired = inv.missingColumns.filter(c => c.required);
+    const missingDiameter = inv.missingColumns.find(c => c.id === "diameter");
+    if (missingRequired.length) {
+      items.push(["err", `Tabulā nav atrasta kolonna: ${missingRequired.map(c => `«${c.label}»`).join(", ")}. Šīs vērtības jāievada manuāli tabulā «Nogabali».`]);
+    } else {
+      items.push(["ok", "Tabulas kolonnas atpazītas pēc virsraksta — skaitļi ņemti no pareizajām kolonnām."]);
+    }
+    if (missingDiameter) items.push(["warn", "Tabulā nav kolonnas «vid. caurmērs» — kailcirte vērtēta tikai pēc vecuma."]);
+  } else if (inv.layout === "order") {
+    items.push(["warn", "Tabulas virsraksts nav atpazīts — skaitļi ņemti pēc secības rindā (augstums, caurmērs, vecums … krāja). Pārbaudiet vērtības tabulā «Nogabali»."]);
+  }
+
+  const areaSum = r.stands.reduce((a, s) => a + (s.area || 0), 0);
+  if (inv.meta.totalArea !== null && r.stands.length) {
+    const same = Math.abs(areaSum - inv.meta.totalArea) < 0.005;
+    items.push([same ? "ok" : "err", same
+      ? `Nogabalu platību summa ${f2(areaSum)} ha sakrīt ar dokumenta kopsummu ${f2(inv.meta.totalArea)} ha — neviens nogabals nav pazaudēts.`
+      : areaSum < inv.meta.totalArea
+        ? `Nogabalu platību summa ${f2(areaSum)} ha ir mazāka par dokumenta kopsummu ${f2(inv.meta.totalArea)} ha — daļa rindu, iespējams, nav nolasīta. Trūkstošos nogabalus var pievienot manuāli.`
+        : `Nogabalu platību summa ${f2(areaSum)} ha ir lielāka par dokumenta kopsummu ${f2(inv.meta.totalArea)} ha — pārbaudiet manuāli pievienotos vai labotos nogabalus.`]);
+  } else if (r.stands.length) {
+    items.push(["warn", "Dokumentā nav atrasta kopējā platība — nav iespējams pārbaudīt, vai nolasīti visi nogabali."]);
+  }
+
+  const badFormula = forest.filter(s => s.coefSum !== 10);
+  if (forest.length) {
+    items.push(badFormula.length
+      ? ["err", `Formulas koeficientu summa nav 10: ${badFormula.map(s => `${nogText(s)} (${s.formula || "—"} = ${s.coefSum})`).join(", ")}.`]
+      : ["ok", "Visās sugu sastāva formulās koeficientu summa ir 10."]);
+  }
+  const missingValues = forest.filter(s => ["area", "age", "stock"].some(f => !Number.isFinite(s[f])) || !s.bonitet);
+  if (missingValues.length) items.push(["err", `Trūkst vērtību (platība, bonitāte, vecums vai krāja): ${missingValues.length === forest.length && forest.length > 3 ? `visiem nogabaliem (${forest.length})` : missingValues.map(nogText).join(", ")}. Ievadiet tās tabulā.`]);
+  inv.errors.forEach(e => items.push(["err", e]));
+
+  const editedCount = r.stands.reduce((a, s) => a + s.edited.size, 0);
+  if (editedCount || manualStands.length) {
+    const one = n => n % 10 === 1 && n % 100 !== 11; // Latvian: 1, 21, 31… take the singular
+    items.push(["warn", `Dati laboti manuāli: ${[
+      editedCount ? (one(editedCount) ? `labota ${editedCount} vērtība` : `labotas ${editedCount} vērtības`) : "",
+      manualStands.length ? (one(manualStands.length) ? `pievienots ${manualStands.length} nogabals` : `pievienoti ${manualStands.length} nogabali`) : "",
+    ].filter(Boolean).join(", ")}.`]);
+  }
+  const unknown = forest.filter(s => s.eval?.unknown && s.groups.length);
+  if (unknown.length) items.push(["warn", `Valdošajai sugai nav noteikts cirtes vecums: ${unknown.map(s => `${nogText(s)} (${s.eval.dominant})`).join(", ")}. Papildiniet tabulu «Aprēķina nosacījumi».`]);
+  for (const c of settings.columns) {
+    if (r.columnVolume[c] > 0 && Math.abs(r.shareSum[c] - 100) > 0.001) {
+      items.push(["warn", `Matricas kolonnā «${c}» sortimentu summa ir ${f0(r.shareSum[c])} %, nevis 100 % — daļa apjoma netiek novērtēta.`]);
+    }
+  }
+  const unmapped = Object.keys(r.species).filter(sp => !settings.speciesColumn[sp]);
+  if (unmapped.length) items.push(["warn", `Sugas bez savas matricas kolonnas ieskaitītas «Citi»: ${unmapped.map(sp => `${sp} (${SPECIES_NAMES[sp] || "?"})`).join(", ")}.`]);
+  const hasErrors = items.some(([cls]) => cls === "err");
+  $("checks").innerHTML = items.map(([cls, text]) => `<li class="${cls}"><span>${cls === "ok" ? "✔" : cls === "warn" ? "⚠" : "✖"}</span><span>${esc(text)}</span></li>`).join("");
+  return hasErrors;
+}
+
+function reportText(r, multiQuarter) {
+  const m = inventory.meta;
+  const cut = r.forest.filter(s => s.included);
+  const species = sortSpecies(Object.keys(r.species));
+  return [
+    `NĪ ${m.objekts || "—"}, zemes vienība ${m.zemesVieniba || "—"}`,
+    `Kailcirtes: ${cut.length ? cut.map(s => standLabel(s, multiQuarter)).join("; ") : "nav"}`,
+    `Cērtamais apjoms: ${f0(r.total)} m3${species.length ? ` (${species.map(sp => `${sp}=${f0(r.species[sp])} m3`).join("; ")})` : ""}`,
+    `Maksimālā iegādes summa = ${f0(r.maxSum)} EUR, jeb ${f2(r.perM3)} EUR/m3`,
+  ].join("\n");
+}
+
+function renderReport(r, multiQuarter) {
+  $("report").textContent = reportText(r, multiQuarter);
+  $("kpis").innerHTML = [
+    [`${f2(r.area)} ha`, "cērtamā platība"],
+    [`${f2(r.total)} m³`, "cērtamais apjoms"],
+    [`${f2(r.revenue)} EUR`, "sortimentu vērtība"],
+    [`${f2(r.costs)} EUR`, "izdevumi: ciršana, pievešana, transports"],
+    [`${f2(r.profit)} EUR`, `peļņa ${f0(settings.costs.profit)} %`],
+    [`${f2(r.maxSum)} EUR`, "maksimālā iegādes summa"],
+  ].map(([b, s]) => `<div class="kpi"><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join("");
+}
+
+function editInput(s, field, width, opts = {}) {
+  const raw = s[field];
+  const value = raw === null || raw === undefined || (typeof raw === "number" && !Number.isFinite(raw)) ? ""
+    : typeof raw === "number" ? String(raw).replace(".", ",") : raw;
+  const invalid = opts.required && value === "";
+  const cls = ["cell-edit", opts.text ? "text" : "", s.edited.has(field) ? "edited" : "", invalid ? "invalid" : ""].join(" ");
+  return `<input class="${cls}" style="width:${width}px" data-edit="${esc(s.key)}|${field}" value="${esc(value)}" title="Noklikšķiniet, lai labotu">`
+    + `<span class="print-val${s.edited.has(field) ? " edited" : ""}">${esc(value)}</span>`;
+}
+
+function renderStands(r, multiQuarter) {
+  const head = `<thead><tr><th>Nogabals</th><th class="num">Platība, ha</th><th>Sugu sastāvs</th><th>Valdošā suga</th><th>Bonitāte</th>
+    <th class="num">Vecums</th><th class="num">Caurmērs</th><th class="num">Krāja m³/ha</th><th class="num">Apjoms m³</th>
+    <th>Kailcirte</th><th class="no-print">Iekļaut</th><th>Piezīmes</th><th class="no-print"></th></tr></thead>`;
+  const body = r.stands.map(s => {
+    if (!s.forest) {
+      return `<tr class="nonforest"><td>${esc(standLabel(s, multiQuarter))}</td><td class="num">${f2(s.area)}</td><td colspan="11">${esc(s.landType)} — nav mežaudze</td></tr>`;
+    }
+    const e = s.eval;
+    const manual = overrides.has(s.key);
+    let badge;
+    if (manual) badge = `<span class="badge manual">${s.included ? "iekļauts manuāli" : "izslēgts manuāli"}</span>`;
+    else if (e.unknown) badge = `<span class="badge unk">nav nosacījumu</span>`;
+    else if (e.exempt) badge = `<span class="badge yes" title="${esc(e.dominant)}: bez vecuma un caurmēra ierobežojuma">jā — ${esc(e.dominant)}</span>`;
+    else badge = e.ok ? `<span class="badge yes">jā</span>` : `<span class="badge no">nē</span>`;
+    const limit = (value, pass) => e.exempt ? "" : `<span class="limit ${pass ? "pass" : ""}">/ ${value ?? "—"}</span>`;
+    const notes = [s.lastCut && `Pēdējā cirte: ${s.lastCut}`, ...(s.notes || [])].filter(Boolean);
+    const noteCell = s.notes?.length ? `<span class="note" title="${esc(notes.join("\n"))}">⚠ aizsargjosla</span>`
+      : (notes.length ? `<span class="muted small" title="${esc(notes.join("\n"))}">${esc(s.lastCut)}</span>` : "");
+    const nrCell = s.manual ? `${editInput(s, "nr", 44)} <span class="small muted">manuāli</span>` : esc(standLabel(s, multiQuarter));
+    return `<tr class="${s.included ? "" : "excluded"} ${s.manual ? "manual-row" : ""}">
+      <td>${nrCell}</td><td class="num">${editInput(s, "area", 60, { required: true })}</td>
+      <td>${editInput(s, "formula", Math.max(170, Math.round(String(s.formula || "").length * 9 + 16)), { text: true, required: true })}</td>
+      <td>${esc(e.dominant)} <span class="muted small">${esc(SPECIES_NAMES[e.dominant] || "")}</span></td>
+      <td>${editInput(s, "bonitet", 42, { text: true, required: true })}</td>
+      <td class="num">${editInput(s, "age", 46, { required: true })} ${limit(e.ageLimit, e.byAge)}</td>
+      <td class="num">${editInput(s, "diameter", 46)} ${limit(e.diaLimit, e.byDia)}</td>
+      <td class="num">${editInput(s, "stock", 52, { required: true })}</td>
+      <td class="num">${s.included ? f2(s.volume) : "—"}</td><td>${badge}</td>
+      <td class="no-print"><input type="checkbox" data-stand="${esc(s.key)}" ${s.included ? "checked" : ""}></td><td class="notes-cell">${noteCell}</td>
+      <td class="no-print">${s.manual ? `<button class="link" data-del="${esc(s.key)}" title="Dzēst manuāli pievienoto nogabalu">✕</button>` : ""}</td></tr>`;
+  }).join("");
+  $("standsTable").innerHTML = head + `<tbody>${body}</tbody>`;
+}
+
+function renderSpecies(r, multiQuarter) {
+  const species = sortSpecies(Object.keys(r.species));
+  const head = `<thead><tr><th>Nogabals</th><th>Sugu sastāvs</th><th class="num">Apjoms m³</th>${species.map(sp => `<th class="num">${esc(sp)} <span class="muted">${esc(SPECIES_NAMES[sp] || "")}</span></th>`).join("")}</tr></thead>`;
+  const body = r.perStand.map(row => `<tr><td>${esc(standLabel(row.stand, multiQuarter))}</td><td>${esc(row.stand.formula)}</td><td class="num">${f2(row.stand.volume)}</td>
+    ${species.map(sp => `<td class="num">${row.species[sp] ? f2(row.species[sp]) : ""}</td>`).join("")}</tr>`).join("");
+  const foot = `<tfoot><tr><td>Kopā</td><td></td><td class="num">${f2(r.total)}</td>${species.map(sp => `<td class="num">${f2(r.species[sp])}</td>`).join("")}</tr>
+    <tr><td>Atskaitē (noapaļots)</td><td></td><td class="num">${f0(r.total)}</td>${species.map(sp => `<td class="num">${f0(r.species[sp])}</td>`).join("")}</tr></tfoot>`;
+  $("speciesTable").innerHTML = head + `<tbody>${body}</tbody>` + foot;
+}
+
+function renderMatrix(r) {
+  const cols = settings.columns;
+  const ec = c => (r.columnVolume[c] > 0 ? "" : " col-empty");   // columns without volume are left out of the printout
+  const pv = v => `<span class="print-val">${v === null || v === undefined ? "" : esc(String(v).replace(".", ","))}</span>`;
+  let html = `<thead><tr><th rowspan="2">Sortiments</th>${cols.map(c => `<th class="col${ec(c)}" colspan="3">${esc(c)}</th>`).join("")}<th rowspan="2" class="num">EUR</th></tr>
+    <tr>${cols.map(c => `<th class="num${ec(c)}">EUR/m³</th><th class="num${ec(c)}">m³</th><th class="num${ec(c)}">%</th>`).join("")}</tr></thead><tbody>`;
+  html += `<tr class="head-vol"><td>Cērtamais apjoms</td>${cols.map(c => `<td class="first-sub${ec(c)}"></td><td class="num${ec(c)}">${f2(r.columnVolume[c])}</td><td class="${ec(c)}"></td>`).join("")}<td class="num">${f2(r.total)} m³</td></tr>`;
+  for (const a of settings.assortments) {
+    html += `<tr><td>${esc(a)}</td>`;
+    for (const c of cols) {
+      const [price, pct] = settings.matrix[c]?.[a] ?? [null, null];
+      const cell = r.cells[`${c}|${a}`];
+      html += `<td class="first-sub num${ec(c)}"><input data-cell="${esc(c)}|${esc(a)}|0" value="${price ?? ""}" inputmode="decimal">${pv(price)}</td>
+        <td class="num vol${ec(c)}">${cell.vol ? f2(cell.vol) : ""}</td>
+        <td class="num${ec(c)}"><input data-cell="${esc(c)}|${esc(a)}|1" value="${pct ?? ""}" inputmode="decimal">${pv(pct)}</td>`;
+    }
+    html += `<td class="num">${r.rowRevenue[a] ? f2(r.rowRevenue[a]) : "—"}</td></tr>`;
+  }
+  html += `</tbody><tfoot><tr><td>Kopā</td>${cols.map(c => {
+    const bad = r.columnVolume[c] > 0 && Math.abs(r.shareSum[c] - 100) > 0.001;
+    return `<td class="first-sub${ec(c)}"></td><td class="num${ec(c)}">${f2(r.columnVolume[c])}</td><td class="num ${bad ? "bad" : ""}${ec(c)}">${f0(r.shareSum[c])}%</td>`;
+  }).join("")}<td class="num">${f2(r.revenue)}</td></tr></tfoot>`;
+  $("matrixTable").innerHTML = html;
+}
+
+function renderCosts(r) {
+  const k = settings.costs;
+  const field = (id, label, unit, amount) => `<label><span>${label}<br><span class="amount">${amount}</span></span>
+    <span><input data-cost="${id}" value="${k[id]}" inputmode="decimal"><span class="print-val">${esc(String(k[id]).replace(".", ","))}</span> ${unit}</span></label>`;
+  $("costs").innerHTML = [
+    field("cutting", "Koku ciršana", "EUR/m³", `− ${f2(r.costItems[0][1])} EUR`),
+    field("forwarding", "Kokmateriālu pievešana", "EUR/m³", `− ${f2(r.costItems[1][1])} EUR`),
+    field("transport", "Transports", "EUR/m³", `− ${f2(r.costItems[2][1])} EUR`),
+    field("profit", "Peļņa", "%", `− ${f2(r.profit)} EUR`),
+  ].join("") + `<label style="background:var(--accent-soft)"><span><b>Maksimālā iegādes summa</b><br><span class="amount">${f2(r.perM3)} EUR/m³</span></span><b>${f2(r.maxSum)} EUR</b></label>`;
+}
+
+function renderRules() {
+  const groups = ["Ia–I", "II–III", "IV un zemāka"];
+  $("ageTable").innerHTML = `<thead><tr><th>Suga</th>${groups.map(g => `<th class="num">${g}</th>`).join("")}</tr></thead><tbody>` +
+    Object.entries(settings.cutAge).map(([sp, vals]) => `<tr><td>${esc(sp)} <span class="muted small">${esc(SPECIES_NAMES[sp] || "")}</span></td>${vals.map((v, i) =>
+      `<td class="num"><input data-age="${esc(sp)}|${i}" value="${v}"></td>`).join("")}</tr>`).join("") + "</tbody>";
+  const bon = ["Ia", "I", "II", "III"];
+  $("diaTable").innerHTML = `<thead><tr><th>Suga (caurmērs, cm)</th>${bon.map(b => `<th class="num">${b}</th>`).join("")}</tr></thead><tbody>` +
+    Object.entries(settings.cutDiameter).map(([sp, vals]) => `<tr><td>${esc(sp)} <span class="muted small">${esc(SPECIES_NAMES[sp] || "")}</span></td>${bon.map(b =>
+      `<td class="num"><input data-dia="${esc(sp)}|${b}" value="${vals[b] ?? ""}"></td>`).join("")}</tr>`).join("") + "</tbody>";
+  $("exemptInput").value = settings.exempt.join(", ");
+  const found = inventory ? allStands().filter(s => s.forest).flatMap(s => s.groups.map(g => g.sp)) : [];
+  const codes = sortSpecies([...new Set([...Object.keys(SPECIES_NAMES), ...Object.keys(settings.speciesColumn), ...found])]);
+  $("mapTable").innerHTML = `<thead><tr><th>Suga</th><th>Matricas kolonna</th></tr></thead><tbody>` + codes.map(sp => `<tr><td>${esc(sp)} <span class="muted small">${esc(SPECIES_NAMES[sp] || "")}</span></td>
+    <td><select data-map="${esc(sp)}">${["", ...settings.columns].map(c => `<option value="${esc(c)}" ${(settings.speciesColumn[sp] || "") === c ? "selected" : ""}>${c ? esc(c) : "Citi (noklusējums)"}</option>`).join("")}</select></td></tr>`).join("") + "</tbody>";
+}
+
+/* ---------------------------------------------------------------- events */
+const parseInput = v => (String(v).trim() === "" ? null : numLv(v));
+
+function originalValue(key, field) {
+  const s = [...inventory.stands, ...manualStands].find(x => x.key === key);
+  return s ? s[field] : undefined;
+}
+
+document.addEventListener("input", e => {
+  const el = e.target;
+  if (el.dataset.edit) {
+    const [key, field] = el.dataset.edit.split("|");
+    const isText = field === "formula" || field === "bonitet";
+    const value = isText ? el.value.trim() : parseInput(el.value);
+    if (!isText && value !== null && Number.isNaN(value)) return;
+    const manual = manualStands.find(s => s.key === key);
+    if (manual) {
+      manual[field] = field === "nr" ? (value ?? "") : value;
+    } else {
+      const e2 = edits.get(key) || {};
+      const orig = originalValue(key, field);
+      if (value === orig || (value === "" && (orig === "" || orig === null))) delete e2[field]; else e2[field] = value;
+      if (Object.keys(e2).length) edits.set(key, e2); else edits.delete(key);
+    }
+    render();
+    return;
+  }
+  if (el.dataset.cell) {
+    const [c, a, i] = el.dataset.cell.split("|");
+    settings.matrix[c] ??= {};
+    const cell = settings.matrix[c][a] ?? [null, null];
+    const v = parseInput(el.value);
+    if (v !== null && Number.isNaN(v)) return;
+    cell[+i] = v;
+    if (cell[0] === null && cell[1] === null) delete settings.matrix[c][a]; else settings.matrix[c][a] = cell;
+  } else if (el.dataset.cost) {
+    const v = parseInput(el.value);
+    if (v === null || Number.isNaN(v)) return;
+    settings.costs[el.dataset.cost] = v;
+  } else if (el.dataset.age) {
+    const [sp, i] = el.dataset.age.split("|");
+    const v = parseInput(el.value);
+    if (v === null || Number.isNaN(v)) return;
+    settings.cutAge[sp][+i] = v;
+  } else if (el.dataset.dia) {
+    const [sp, b] = el.dataset.dia.split("|");
+    const v = parseInput(el.value);
+    if (v === null) delete settings.cutDiameter[sp][b]; else if (!Number.isNaN(v)) settings.cutDiameter[sp][b] = v;
+  } else if (el.id === "exemptInput") {
+    settings.exempt = el.value.split(",").map(s => s.trim()).filter(Boolean);
+  } else {
+    return;
+  }
+  saveSettings();
+  render();
+});
+
+document.addEventListener("change", e => {
+  const el = e.target;
+  if (el.dataset.stand) {
+    const s = calculate().forest.find(x => x.key === el.dataset.stand);
+    if (el.checked === s.eval.ok) overrides.delete(s.key); else overrides.set(s.key, el.checked);
+    render();
+  } else if (el.dataset.map !== undefined) {
+    if (el.value) settings.speciesColumn[el.dataset.map] = el.value; else delete settings.speciesColumn[el.dataset.map];
+    saveSettings();
+    render();
+  }
+});
+
+document.addEventListener("click", e => {
+  const del = e.target.closest?.("[data-del]");
+  if (!del) return;
+  manualStands = manualStands.filter(s => s.key !== del.dataset.del);
+  overrides.delete(del.dataset.del);
+  render();
+});
+
+async function handleFile(file) {
+  if (!file) return;
+  $("fileInfo").hidden = false;
+  $("fileInfo").innerHTML = `Nolasa <span class="file-name">${esc(file.name)}</span>…`;
+  try {
+    inventory = parseInventory(await readPdfRows(file));
+    overrides.clear();
+    edits.clear();
+    manualStands = [];
+    $("fileInfo").innerHTML = `Fails: <span class="file-name">${esc(file.name)}</span>`;
+    renderRules();
+    render();
+  } catch (err) {
+    inventory = null;
+    $("fileInfo").innerHTML = `<span style="color:var(--red)">Neizdevās nolasīt «${esc(file.name)}»: ${esc(err.message)}</span>`;
+  }
+}
+
+$("fileInput").addEventListener("change", e => handleFile(e.target.files[0]));
+const drop = $("drop");
+["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => handleFile(e.dataTransfer.files[0]));
+
+$("addStandBtn").addEventListener("click", () => {
+  manualCounter++;
+  const last = inventory.stands.at(-1);
+  manualStands.push({ key: `manual/${manualCounter}`, manual: true, kvartals: last?.kvartals ?? "", nr: "", area: null,
+    forest: true, landType: "Mežaudze", formula: "", bonitet: "", height: null, diameter: null, age: null, stock: null, notes: [], lastCut: "" });
+  render();
+  const inputs = document.querySelectorAll(`[data-edit^="manual/${manualCounter}|"]`);
+  if (inputs[0]) inputs[0].focus();
+});
+$("clearEditsBtn").addEventListener("click", () => {
+  edits.clear();
+  manualStands = [];
+  overrides.clear();
+  render();
+});
+/* Clipboard API can hang waiting for a permission or be missing (file://), so fall back to the classic copy command. */
+async function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await Promise.race([
+        navigator.clipboard.writeText(text),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 1500)),
+      ]);
+      return true;
+    } catch (e) { /* try the fallback below */ }
+  }
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  area.remove();
+  return ok;
+}
+$("copyBtn").addEventListener("click", async () => {
+  $("copyMsg").textContent = "Kopē…";
+  $("copyMsg").textContent = (await copyText($("report").textContent))
+    ? "Nokopēts."
+    : "Neizdevās nokopēt — iezīmējiet atskaites tekstu un nospiediet Ctrl+C.";
+});
+$("printBtn").addEventListener("click", () => window.print());
+$("resetBtn").addEventListener("click", () => {
+  settings = clone(DEFAULTS);
+  saveSettings();
+  renderRules();
+  render();
+});
+
+renderRules();
+</script>
+</body>
+</html>
